@@ -66,6 +66,20 @@ class Ishocon1::WebApp < Sinatra::Base
       end
     end
 
+    def comments_by_product_id product_id
+      $product_comments[product_id] || []
+    end
+
+    def load_upcoming_comments
+      $loaded_comment_id ||= 0
+      $product_comments ||= {}
+      db.xquery('SELECT * from comments where id > ? order by id asc', $loaded_comment_id).to_a.each do |comment|
+        ($product_comments[comment[:product_id]] ||= []).unshift comment
+        $loaded_comment_id = comment[:id]
+      end
+      p $loaded_comment_id
+    end
+
 
     def time_now_db
       Time.now - 9 * 60 * 60
@@ -136,16 +150,9 @@ class Ishocon1::WebApp < Sinatra::Base
   get '/' do
     page = params[:page].to_i || 0
     products = db.xquery("SELECT * FROM products ORDER BY id DESC LIMIT 50 OFFSET #{page * 50}")
-    cmt_query = <<SQL
-SELECT *
-FROM comments
-WHERE product_id = ?
-ORDER BY id DESC
-LIMIT 5
-SQL
-    cmt_count_query = 'SELECT count(*) as count FROM comments WHERE product_id = ?'
+    load_upcoming_comments
 
-    erb :index, locals: { products: products, cmt_query: cmt_query, cmt_count_query: cmt_count_query }
+    erb :index, locals: { products: products }
   end
 
   get '/users/:user_id' do

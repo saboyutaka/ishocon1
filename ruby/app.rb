@@ -33,15 +33,59 @@ def db
   client
 end
 
+def load_upcomming_histories
+  $loaded_history_id ||= 0
+  $histories ||= []
+  $user_histories ||= {}
+  $user_product_boughts ||= {}
+  $user_pays ||= Hash.new(0)
+  histories = db.xquery('SELECT id, user_id, product_id, created_at from histories where id > ? order by id asc', $loaded_history_id, as: :array).to_a
+  histories.each do |history|
+    id, uid, pid, _at = history
+    $histories[id] = history
+    ($user_histories[uid] ||= []).unshift history
+    $user_product_boughts[[uid, pid]] = true
+    $loaded_history_id = id if id > $loaded_history_id
+    $user_pays[uid] += find_product(pid)[:price]
+  end
+end
+
+def reset_histories
+  return if $histories.size == 500000+1
+  $loaded_history_id = 0
+  $histories = $histories[0..500000]
+  $user_histories = {}
+  $user_product_boughts = {}
+  $user_pays = Hash.new(0)
+  $histories.each do |history|
+    next unless history
+    id, uid, pid, _at = history
+    $histories[id] = history
+    ($user_histories[uid] ||= []).unshift history
+    $user_product_boughts[[uid, pid]] = true
+    $loaded_history_id = id if id > $loaded_history_id
+    $user_pays[uid] += find_product(pid)[:price]
+  end
+end
+
+def reset_comments
+  return if $comments.size == 200000+1
+  $comments = $comments[0..200000]
+  $loaded_comment_id = 0
+  $product_comments = {}
+  $comments.each do |comment|
+    next unless comment
+    ($product_comments[comment[:product_id]] ||= []).unshift comment
+    $loaded_comment_id = comment[:id] if comment[:id] > $loaded_comment_id
+  end
+end
+
 def load_upcomming_comments
   $loaded_comment_id ||= 0
   $product_comments ||= {}
-  # last_id = db.query('select id from comments order by id desc limit 1').first[:id]
-  # if last_id < $loaded_comment_id
-  #   $loaded_comment_id = 0
-  #   $product_comments = {}
-  # end
+  $comments = []
   db.xquery('SELECT * from comments where id > ? order by created_at asc, id asc', $loaded_comment_id).to_a.each do |comment|
+    $comments[comment[:id]] = comment
     ($product_comments[comment[:product_id]] ||= []).unshift comment
     $loaded_comment_id = comment[:id] if comment[:id] > $loaded_comment_id
   end
@@ -76,6 +120,7 @@ def product_list(offset, limit)
   end.compact
 end
 
+load_upcomming_histories
 load_upcomming_comments
 _find_all_user
 
@@ -140,9 +185,7 @@ class Ishocon1::WebApp < Sinatra::Base
 
     def already_bought?(product_id)
       return false unless current_user
-      count = db.xquery('SELECT count(*) as count FROM histories WHERE product_id = ? AND user_id = ?', \
-                        product_id, current_user[:id]).first[:count]
-      count > 0
+      $user_product_boughts[[current_user[:id], product_id]]
     end
 
     def create_comment(product_id, user_id, content)
@@ -185,12 +228,9 @@ class Ishocon1::WebApp < Sinatra::Base
   end
 
   get '/users/:user_id' do
-    histories = db.xquery('select product_id, user_id from histories where user_id = ? order by id desc', params[:user_id])
-
-    total_pay = 0
-    histories.each do |history|
-      total_pay += find_product(history[:product_id])[:price]
-    end
+    load_upcomming_histories
+    histories = $user_histories[params[:user_id].to_i] || []
+    total_pay = $user_pays[params[:user_id].to_i]
 
     user = find_user params[:user_id]
     erb :mypage, locals: { histories: histories, user: user, total_pay: total_pay }
@@ -198,6 +238,7 @@ class Ishocon1::WebApp < Sinatra::Base
 
   get '/products/:product_id' do
     product = find_product params[:product_id]
+    load_upcomming_histories
     erb :product, locals: { product: product }
   end
 
@@ -214,19 +255,19 @@ class Ishocon1::WebApp < Sinatra::Base
   end
 
   get '/initialize' do
-    40.times do
-      `curl http://localhost:8080/true_initialize`
+    threads = 40.times.map do
+      Thread.new { `curl http://localhost:8080/true_initialize` }
     end
+    threads.map(&:join)
     "Finish"
   end
 
   get '/true_initialize' do
-    $loaded_comment_id = 0
-    $product_comments = {}
     db.query('DELETE FROM users WHERE id > 5000')
     db.query('DELETE FROM products WHERE id > 10000')
     db.query('DELETE FROM comments WHERE id > 200000')
     db.query('DELETE FROM histories WHERE id > 500000')
-    "Finish"
+    reset_comments
+    reset_histories
   end
 end

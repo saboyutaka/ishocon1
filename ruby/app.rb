@@ -43,7 +43,8 @@ def load_upcomming_histories
   $user_pays ||= Hash.new(0)
   histories = db.xquery('SELECT id, user_id, product_id, created_at from histories where id > ? order by id asc', $loaded_history_id, as: :array).to_a
   histories.each do |history|
-    id, uid, pid, _at = history
+    id, uid, pid, at = history
+    history[3] = (at+9*60*60).strftime("%Y-%m-%d %H:%M:%S")
     $histories[id] = history
     ($user_histories[uid] ||= []).unshift history
     $user_product_boughts[[uid, pid]] = true

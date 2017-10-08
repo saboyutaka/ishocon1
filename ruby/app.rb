@@ -5,6 +5,7 @@ require 'rack-mini-profiler'
 require 'rack-lineprof'
 require 'erubis'
 require 'rack/session/dalli'
+require 'base64'
 
 def config
   @config ||= {

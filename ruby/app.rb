@@ -157,6 +157,17 @@ class Ishocon1::WebApp < Sinatra::Base
       $product_comments[product_id] || []
     end
 
+    def view_cache key
+      $view_cache ||= []
+      hash = key.hash
+      i = hash%10000
+      h, v = $view_cache[i]
+      return v if v && h == hash
+      v = yield
+      $view_cache[i] = [hash, v]
+      v
+    end
+
     def time_now_db
       Time.now - 9 * 60 * 60
     end
@@ -225,9 +236,8 @@ class Ishocon1::WebApp < Sinatra::Base
 
   get '/' do
     page = params[:page].to_i || 0
-    products = product_list page * 50, 50
     load_upcomming_comments
-    erb :index, locals: { products: products }
+    erb :indexlayout, layout: false, locals: { page: page }
   end
 
   get '/users/:user_id' do
@@ -236,7 +246,7 @@ class Ishocon1::WebApp < Sinatra::Base
     total_pay = $user_pays[params[:user_id].to_i]
 
     user = find_user params[:user_id]
-    erb :mypage, locals: { histories: histories, user: user, total_pay: total_pay }
+    erb :mylayout, layout: false, locals: { histories: histories, user: user, total_pay: total_pay }
   end
 
   get '/products/:product_id' do
@@ -272,6 +282,7 @@ class Ishocon1::WebApp < Sinatra::Base
     db.query('DELETE FROM histories WHERE id > 500000')
     reset_comments
     reset_histories
+    $view_cache = []
     'Finish'
   end
 end

@@ -38,7 +38,7 @@ def load_upcomming_comments
   $product_comments ||= {}
   db.xquery('SELECT * from comments where id > ? order by created_at asc, id asc', $loaded_comment_id).to_a.each do |comment|
     ($product_comments[comment[:product_id]] ||= []).unshift comment
-    $loaded_comment_id = comment[:id]
+    $loaded_comment_id = [$loaded_comment_id, comment[:id]].max
   end
 end
 

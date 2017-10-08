@@ -1,6 +1,8 @@
 require 'sinatra/base'
 require 'mysql2'
 require 'mysql2-cs-bind'
+require 'rack-mini-profiler'
+require 'rack-lineprof'
 require 'erubis'
 
 module Ishocon1
@@ -10,6 +12,8 @@ end
 
 class Ishocon1::WebApp < Sinatra::Base
   session_secret = ENV['ISHOCON1_SESSION_SECRET'] || 'showwin_happy'
+  use Rack::Lineprof if ENV['DEBUG']
+  use Rack::MiniProfiler if ENV['DEBUG']
   use Rack::Session::Cookie, key: 'rack.session', secret: session_secret
   set :erb, escape_html: true
   set :public_folder, File.expand_path('../public', __FILE__)

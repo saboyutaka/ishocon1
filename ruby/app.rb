@@ -126,6 +126,22 @@ load_upcomming_histories
 load_upcomming_comments
 _find_all_user
 
+def start_async
+  p :STARTING_ASYNC
+  $async_thread ||= Thread.new do
+    a=Time.now
+    loop do
+      t1 = Time.now
+      load_upcomming_histories
+      t2 = Time.now
+      load_upcomming_comments
+      t3 = Time.now
+      p [t2-t1, t3-t2]
+      sleep 0.05
+    end
+  end
+end
+
 module Ishocon1
 end
 
@@ -138,17 +154,6 @@ class Ishocon1::WebApp < Sinatra::Base
   set :erb, escape_html: true
   set :public_folder, File.expand_path('../public', __FILE__)
   set :protection, true
-
-  def initialize
-    super
-    Thread.new do
-      loop do
-        load_upcomming_histories
-        load_upcomming_comments
-        sleep 0.05
-      end
-    end
-  end
 
   helpers do
     def find_user(id)
@@ -231,6 +236,8 @@ class Ishocon1::WebApp < Sinatra::Base
     session.clear
     redirect '/login'
   end
+
+  before { start_async }
 
   get '/' do
     page = params[:page].to_i || 0

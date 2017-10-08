@@ -128,8 +128,6 @@ _find_all_user
 
 
 module Ishocon1
-  class AuthenticationError < StandardError; end
-  class PermissionDenied < StandardError; end
 end
 
 class Ishocon1::WebApp < Sinatra::Base
@@ -164,12 +162,12 @@ class Ishocon1::WebApp < Sinatra::Base
 
     def authenticate(email, password)
       user = find_user_by_email(email)
-      fail Ishocon1::AuthenticationError unless user[:password] == password
+      login_fail unless user[:password] == password
       session[:user_id] = user[:id]
     end
 
     def authenticated!
-      fail Ishocon1::PermissionDenied unless current_user
+      permission_denied unless current_user
     end
 
     def current_user
@@ -196,15 +194,15 @@ class Ishocon1::WebApp < Sinatra::Base
       db.xquery('INSERT INTO comments (product_id, user_id, content, created_at) VALUES (?, ?, ?, ?)', \
         product_id, user_id, content, time_now_db)
     end
-  end
 
-  error Ishocon1::AuthenticationError do
-    session[:user_id] = nil
-    halt 401, erb(:login, layout: false, locals: { message: 'ログインに失敗しました' })
-  end
+    def login_fail
+      session[:user_id] = nil
+      halt 401, erb(:login, layout: false, locals: { message: 'ログインに失敗しました' })
+    end
 
-  error Ishocon1::PermissionDenied do
-    halt 403, erb(:login, layout: false, locals: { message: '先にログインをしてください' })
+    def permission_denied
+      halt 403, erb(:login, layout: false, locals: { message: '先にログインをしてください' })
+    end
   end
 
   get '/login' do

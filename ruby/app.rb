@@ -6,6 +6,60 @@ require 'rack-lineprof'
 require 'erubis'
 require 'rack/session/dalli'
 
+def config
+  @config ||= {
+    db: {
+      host: ENV['ISHOCON1_DB_HOST'] || 'localhost',
+      port: ENV['ISHOCON1_DB_PORT'] && ENV['ISHOCON1_DB_PORT'].to_i,
+      username: ENV['ISHOCON1_DB_USER'] || 'root',
+      password: ENV['ISHOCON1_DB_PASSWORD'] || '',
+      database: ENV['ISHOCON1_DB_NAME'] || 'ishocon1'
+    }
+  }
+end
+
+def db
+  return Thread.current[:ishocon1_db] if Thread.current[:ishocon1_db]
+  client = Mysql2::Client.new(
+    host: config[:db][:host],
+    port: config[:db][:port],
+    username: config[:db][:username],
+    password: config[:db][:password],
+    database: config[:db][:database],
+    reconnect: true
+  )
+  client.query_options.merge!(symbolize_keys: true)
+  Thread.current[:ishocon1_db] = client
+  client
+end
+
+def load_upcomming_comments
+  $loaded_comment_id ||= 0
+  $product_comments ||= {}
+  # last_id = db.query('select id from comments order by id desc limit 1').first[:id]
+  # if last_id < $loaded_comment_id
+  #   $loaded_comment_id = 0
+  #   $product_comments = {}
+  # end
+  db.xquery('SELECT SQL_NO_CACHE * from comments where id > ? order by created_at asc, id asc', $loaded_comment_id).to_a.each do |comment|
+    ($product_comments[comment[:product_id]] ||= []).unshift comment
+    $loaded_comment_id = comment[:id] if comment[:id] > $loaded_comment_id
+  end
+end
+
+def _find_all_user
+  $id_users = []
+  $email_users = {}
+  db.xquery('SELECT SQL_NO_CACHE * from users').to_a.each do |user|
+    $id_users[user[:id]] = user
+    $email_users[user[:email]] = user
+  end
+end
+
+load_upcomming_comments
+_find_all_user
+
+
 module Ishocon1
   class AuthenticationError < StandardError; end
   class PermissionDenied < StandardError; end
@@ -22,31 +76,19 @@ class Ishocon1::WebApp < Sinatra::Base
   set :protection, true
 
   helpers do
-    def config
-      @config ||= {
-        db: {
-          host: ENV['ISHOCON1_DB_HOST'] || 'localhost',
-          port: ENV['ISHOCON1_DB_PORT'] && ENV['ISHOCON1_DB_PORT'].to_i,
-          username: ENV['ISHOCON1_DB_USER'] || 'root',
-          password: ENV['ISHOCON1_DB_PASSWORD'] || '',
-          database: ENV['ISHOCON1_DB_NAME'] || 'ishocon1'
-        }
-      }
+    def find_user(id)
+      _find_all_user unless $id_users
+      $id_users[id.to_i] if id
     end
 
-    def db
-      return Thread.current[:ishocon1_db] if Thread.current[:ishocon1_db]
-      client = Mysql2::Client.new(
-        host: config[:db][:host],
-        port: config[:db][:port],
-        username: config[:db][:username],
-        password: config[:db][:password],
-        database: config[:db][:database],
-        reconnect: true
-      )
-      client.query_options.merge!(symbolize_keys: true)
-      Thread.current[:ishocon1_db] = client
-      client
+    def find_user_by_email(email)
+      _find_all_user unless $email_users
+      $email_users[email] if email
+    end
+
+
+    def comments_by_product_id product_id
+      $product_comments[product_id] || []
     end
 
     def time_now_db
@@ -54,7 +96,7 @@ class Ishocon1::WebApp < Sinatra::Base
     end
 
     def authenticate(email, password)
-      user = db.xquery('SELECT * FROM users WHERE email = ?', email).first
+      user = find_user_by_email(email)
       fail Ishocon1::AuthenticationError unless user[:password] == password
       session[:user_id] = user[:id]
     end
@@ -64,7 +106,7 @@ class Ishocon1::WebApp < Sinatra::Base
     end
 
     def current_user
-      db.xquery('SELECT * FROM users WHERE id = ? LIMIT 1', session[:user_id]).first
+      @user ||= find_user(session[:user_id])
     end
 
     def update_last_login(user_id)
@@ -118,18 +160,9 @@ class Ishocon1::WebApp < Sinatra::Base
   get '/' do
     page = params[:page].to_i || 0
     products = db.xquery("SELECT * FROM products ORDER BY id DESC LIMIT 50 OFFSET #{page * 50}")
-    cmt_query = <<SQL
-SELECT *
-FROM comments as c
-INNER JOIN users as u
-ON c.user_id = u.id
-WHERE c.product_id = ?
-ORDER BY c.created_at DESC
-LIMIT 5
-SQL
-    cmt_count_query = 'SELECT count(*) as count FROM comments WHERE product_id = ?'
+    load_upcomming_comments
 
-    erb :index, locals: { products: products, cmt_query: cmt_query, cmt_count_query: cmt_count_query }
+    erb :index, locals: { products: products }
   end
 
   get '/users/:user_id' do
@@ -148,7 +181,7 @@ SQL
       total_pay += product[:price]
     end
 
-    user = db.xquery('SELECT * FROM users WHERE id = ?', params[:user_id]).first
+    user = find_user params[:user_id]
     erb :mypage, locals: { products: products, user: user, total_pay: total_pay }
   end
 
@@ -170,6 +203,15 @@ SQL
   end
 
   get '/initialize' do
+    40.times do
+      `curl http://localhost:8080/true_initialize`
+    end
+    "Finish"
+  end
+
+  get '/true_initialize' do
+    $loaded_comment_id = 0
+    $product_comments = {}
     db.query('DELETE FROM users WHERE id > 5000')
     db.query('DELETE FROM products WHERE id > 10000')
     db.query('DELETE FROM comments WHERE id > 200000')

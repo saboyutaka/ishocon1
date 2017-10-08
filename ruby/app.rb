@@ -5,6 +5,57 @@ require 'rack-mini-profiler'
 require 'rack-lineprof'
 require 'erubis'
 
+def config
+  @config ||= {
+    db: {
+      host: ENV['ISHOCON1_DB_HOST'] || 'localhost',
+      port: ENV['ISHOCON1_DB_PORT'] && ENV['ISHOCON1_DB_PORT'].to_i,
+      username: ENV['ISHOCON1_DB_USER'] || 'root',
+      password: ENV['ISHOCON1_DB_PASSWORD'] || '',
+      database: ENV['ISHOCON1_DB_NAME'] || 'ishocon1'
+    }
+  }
+end
+
+def db
+  return Thread.current[:ishocon1_db] if Thread.current[:ishocon1_db]
+  client = Mysql2::Client.new(
+    host: config[:db][:host],
+    port: config[:db][:port],
+    username: config[:db][:username],
+    password: config[:db][:password],
+    database: config[:db][:database],
+    reconnect: true
+  )
+  client.query_options.merge!(symbolize_keys: true)
+  Thread.current[:ishocon1_db] = client
+  client
+end
+
+
+def load_upcomming_comments
+  $loaded_comment_id ||= 0
+  $product_comments ||= {}
+  db.xquery('SELECT * from comments where id > ?', $loaded_comment_id).to_a.each do |comment|
+    ($product_comments[comment[:product_id]] ||= []).unshift comment
+    $loaded_comment_id = comment[:id]
+  end
+end
+
+def _find_all_user
+  $id_users = []
+  $email_users = {}
+  db.xquery('SELECT * from users').to_a.each do |user|
+    $id_users[user[:id]] = user
+    $email_users[user[:email]] = user
+  end
+end
+
+load_upcomming_comments
+_find_all_user
+
+
+
 module Ishocon1
   class AuthenticationError < StandardError; end
   class PermissionDenied < StandardError; end
@@ -20,33 +71,6 @@ class Ishocon1::WebApp < Sinatra::Base
   set :protection, true
 
   helpers do
-    def config
-      @config ||= {
-        db: {
-          host: ENV['ISHOCON1_DB_HOST'] || 'localhost',
-          port: ENV['ISHOCON1_DB_PORT'] && ENV['ISHOCON1_DB_PORT'].to_i,
-          username: ENV['ISHOCON1_DB_USER'] || 'root',
-          password: ENV['ISHOCON1_DB_PASSWORD'] || '',
-          database: ENV['ISHOCON1_DB_NAME'] || 'ishocon1'
-        }
-      }
-    end
-
-    def db
-      return Thread.current[:ishocon1_db] if Thread.current[:ishocon1_db]
-      client = Mysql2::Client.new(
-        host: config[:db][:host],
-        port: config[:db][:port],
-        username: config[:db][:username],
-        password: config[:db][:password],
-        database: config[:db][:database],
-        reconnect: true
-      )
-      client.query_options.merge!(symbolize_keys: true)
-      Thread.current[:ishocon1_db] = client
-      client
-    end
-
     def find_user(id)
       _find_all_user unless $id_users
       $id_users[id.to_i] if id
@@ -57,29 +81,10 @@ class Ishocon1::WebApp < Sinatra::Base
       $email_users[email] if email
     end
 
-    def _find_all_user
-      $id_users = []
-      $email_users = {}
-      db.xquery('SELECT * from users').to_a.each do |user|
-        $id_users[user[:id]] = user
-        $email_users[user[:email]] = user
-      end
-    end
 
     def comments_by_product_id product_id
       $product_comments[product_id] || []
     end
-
-    def load_upcoming_comments
-      $loaded_comment_id ||= 0
-      $product_comments ||= {}
-      db.xquery('SELECT * from comments where id > ? order by id asc', $loaded_comment_id).to_a.each do |comment|
-        ($product_comments[comment[:product_id]] ||= []).unshift comment
-        $loaded_comment_id = comment[:id]
-      end
-      p $loaded_comment_id
-    end
-
 
     def time_now_db
       Time.now - 9 * 60 * 60
@@ -150,7 +155,7 @@ class Ishocon1::WebApp < Sinatra::Base
   get '/' do
     page = params[:page].to_i || 0
     products = db.xquery("SELECT * FROM products ORDER BY id DESC LIMIT 50 OFFSET #{page * 50}")
-    load_upcoming_comments
+    load_upcomming_comments
 
     erb :index, locals: { products: products }
   end

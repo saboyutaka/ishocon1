@@ -82,6 +82,9 @@ load_upcomming_comments
 _find_all_user
 
 
+module Ishocon1
+end
+
 class Ishocon1::WebApp < Sinatra::Base
   session_secret = ENV['ISHOCON1_SESSION_SECRET'] || 'showwin_happy'
 

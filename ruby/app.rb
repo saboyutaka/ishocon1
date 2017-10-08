@@ -32,20 +32,24 @@ def db
   client
 end
 
-
 def load_upcomming_comments
   $loaded_comment_id ||= 0
   $product_comments ||= {}
-  db.xquery('SELECT * from comments where id > ? order by created_at asc, id asc', $loaded_comment_id).to_a.each do |comment|
+  last_id = db.query('select id from comments order by id desc limit 1').first[:id]
+  if last_id < $loaded_comment_id
+    $loaded_comment_id = 0
+    $product_comments = {}
+  end
+  db.xquery('SELECT SQL_NO_CACHE * from comments where id > ? order by created_at asc, id asc', $loaded_comment_id).to_a.each do |comment|
     ($product_comments[comment[:product_id]] ||= []).unshift comment
-    $loaded_comment_id = [$loaded_comment_id, comment[:id]].max
+    $loaded_comment_id = comment[:id] if comment[:id] > $loaded_comment_id
   end
 end
 
 def _find_all_user
   $id_users = []
   $email_users = {}
-  db.xquery('SELECT * from users').to_a.each do |user|
+  db.xquery('SELECT SQL_NO_CACHE * from users').to_a.each do |user|
     $id_users[user[:id]] = user
     $email_users[user[:email]] = user
   end
@@ -53,7 +57,6 @@ end
 
 load_upcomming_comments
 _find_all_user
-
 
 
 module Ishocon1

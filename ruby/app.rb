@@ -49,7 +49,7 @@ class Ishocon1::WebApp < Sinatra::Base
 
     def find_user(id)
       _find_all_user unless $id_users
-      $id_users[id] if id
+      $id_users[id.to_i] if id
     end
 
     def find_user_by_email(email)

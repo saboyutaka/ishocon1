@@ -273,5 +273,6 @@ class Ishocon1::WebApp < Sinatra::Base
     db.query('DELETE FROM histories WHERE id > 500000')
     reset_comments
     reset_histories
+    'Finish'
   end
 end

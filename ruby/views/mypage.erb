@@ -6,8 +6,8 @@
 </div>
 <div class="container">
   <div class="row">
-    <% products.each_with_index do |product, index| %>
-      <% break if index >= 30 %>
+    <% histories.take(30).each do |history| %>
+      <% product = find_product history[:product_id] %>
       <div class="col-md-4">
         <div class="panel panel-default">
           <div class="panel-heading">

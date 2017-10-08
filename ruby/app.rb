@@ -36,7 +36,7 @@ end
 def load_upcomming_comments
   $loaded_comment_id ||= 0
   $product_comments ||= {}
-  db.xquery('SELECT * from comments where id > ?', $loaded_comment_id).to_a.each do |comment|
+  db.xquery('SELECT * from comments where id > ? order by created_at asc, id asc', $loaded_comment_id).to_a.each do |comment|
     ($product_comments[comment[:product_id]] ||= []).unshift comment
     $loaded_comment_id = comment[:id]
   end

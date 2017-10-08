@@ -43,12 +43,32 @@ class Ishocon1::WebApp < Sinatra::Base
       client
     end
 
+    def find_user(id)
+      _find_all_user unless $id_users
+      $id_users[id] if id
+    end
+
+    def find_user_by_email(email)
+      _find_all_user unless $email_users
+      $email_users[email] if email
+    end
+
+    def _find_all_user
+      $id_users = []
+      $email_users = {}
+      db.xquery('SELECT * from users').to_a.each do |user|
+        $id_users[user[:id]] = user
+        $email_users[user[:email]] = user
+      end
+    end
+
+
     def time_now_db
       Time.now - 9 * 60 * 60
     end
 
     def authenticate(email, password)
-      user = db.xquery('SELECT * FROM users WHERE email = ?', email).first
+      user = find_user_by_email(email)
       fail Ishocon1::AuthenticationError unless user[:password] == password
       session[:user_id] = user[:id]
     end
@@ -58,7 +78,7 @@ class Ishocon1::WebApp < Sinatra::Base
     end
 
     def current_user
-      db.xquery('SELECT * FROM users WHERE id = ?', session[:user_id]).first
+      @user ||= find_user(session[:user_id])
     end
 
     def update_last_login(user_id)
@@ -114,11 +134,9 @@ class Ishocon1::WebApp < Sinatra::Base
     products = db.xquery("SELECT * FROM products ORDER BY id DESC LIMIT 50 OFFSET #{page * 50}")
     cmt_query = <<SQL
 SELECT *
-FROM comments as c
-INNER JOIN users as u
-ON c.user_id = u.id
-WHERE c.product_id = ?
-ORDER BY c.created_at DESC
+FROM comments
+WHERE product_id = ?
+ORDER BY id DESC
 LIMIT 5
 SQL
     cmt_count_query = 'SELECT count(*) as count FROM comments WHERE product_id = ?'
@@ -142,7 +160,7 @@ SQL
       total_pay += product[:price]
     end
 
-    user = db.xquery('SELECT * FROM users WHERE id = ?', params[:user_id]).first
+    user = find_user params[:user_id]
     erb :mypage, locals: { products: products, user: user, total_pay: total_pay }
   end
 

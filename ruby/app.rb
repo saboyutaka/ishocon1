@@ -35,11 +35,11 @@ end
 def load_upcomming_comments
   $loaded_comment_id ||= 0
   $product_comments ||= {}
-  last_id = db.query('select id from comments order by id desc limit 1').first[:id]
-  if last_id < $loaded_comment_id
-    $loaded_comment_id = 0
-    $product_comments = {}
-  end
+  # last_id = db.query('select id from comments order by id desc limit 1').first[:id]
+  # if last_id < $loaded_comment_id
+  #   $loaded_comment_id = 0
+  #   $product_comments = {}
+  # end
   db.xquery('SELECT SQL_NO_CACHE * from comments where id > ? order by created_at asc, id asc', $loaded_comment_id).to_a.each do |comment|
     ($product_comments[comment[:product_id]] ||= []).unshift comment
     $loaded_comment_id = comment[:id] if comment[:id] > $loaded_comment_id
@@ -201,6 +201,15 @@ SQL
   end
 
   get '/initialize' do
+    40.times do
+      `curl http://localhost:8080/true_initialize`
+    end
+    "Finish"
+  end
+
+  get '/true_initialize' do
+    $loaded_comment_id = 0
+    $product_comments = {}
     db.query('DELETE FROM users WHERE id > 5000')
     db.query('DELETE FROM products WHERE id > 10000')
     db.query('DELETE FROM comments WHERE id > 200000')

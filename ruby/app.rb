@@ -102,6 +102,14 @@ def _find_all_user
   end
 end
 
+def image_data
+  return $image_data if $image_data
+  $image_data = {}
+  Dir.glob(File.expand_path("public/images/*.jpg", __dir__)).each do |path|
+    key = path.match(/\/image.*/).to_s
+    $image_data[key] = Base64.encode64(File.read(path))
+  end
+end
 
 def _load_all_products
   $products = []
@@ -125,6 +133,7 @@ end
 load_upcomming_histories
 load_upcomming_comments
 _find_all_user
+image_data
 
 
 module Ishocon1

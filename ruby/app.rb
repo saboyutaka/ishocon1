@@ -181,7 +181,7 @@ class Ishocon1::WebApp < Sinatra::Base
     page = params[:page].to_i || 0
     products = product_list page * 50, 50
     load_upcomming_comments
-    erb :index, locals: { products: products }
+    erb :index, layout: false, locals: { products: products }
   end
 
   get '/users/:user_id' do
@@ -193,12 +193,12 @@ class Ishocon1::WebApp < Sinatra::Base
     end
 
     user = find_user params[:user_id]
-    erb :mypage, locals: { histories: histories, user: user, total_pay: total_pay }
+    erb :mypage, layout: false, locals: { histories: histories, user: user, total_pay: total_pay }
   end
 
   get '/products/:product_id' do
     product = find_product params[:product_id]
-    erb :product, locals: { product: product }
+    erb :product, layout: false, locals: { product: product }
   end
 
   post '/products/buy/:product_id' do

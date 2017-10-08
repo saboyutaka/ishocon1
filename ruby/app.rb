@@ -62,7 +62,7 @@ class Ishocon1::WebApp < Sinatra::Base
     end
 
     def current_user
-      db.xquery('SELECT * FROM users WHERE id = ?', session[:user_id]).first
+      db.xquery('SELECT * FROM users WHERE id = ? LIMIT 1', session[:user_id]).first
     end
 
     def update_last_login(user_id)
@@ -151,7 +151,7 @@ SQL
   end
 
   get '/products/:product_id' do
-    product = db.xquery('SELECT * FROM products WHERE id = ?', params[:product_id]).first
+    product = db.xquery('SELECT * FROM products WHERE id = ? LIMIT 1', params[:product_id]).first
     erb :product, locals: { product: product }
   end
 

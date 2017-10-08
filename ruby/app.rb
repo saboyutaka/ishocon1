@@ -11,6 +11,7 @@ def config
     db: {
       host: ENV['ISHOCON1_DB_HOST'] || 'localhost',
       port: ENV['ISHOCON1_DB_PORT'] && ENV['ISHOCON1_DB_PORT'].to_i,
+      socket: '/tmp/mysql.sock',
       username: ENV['ISHOCON1_DB_USER'] || 'root',
       password: ENV['ISHOCON1_DB_PASSWORD'] || '',
       database: ENV['ISHOCON1_DB_NAME'] || 'ishocon1'
@@ -21,8 +22,9 @@ end
 def db
   return Thread.current[:ishocon1_db] if Thread.current[:ishocon1_db]
   client = Mysql2::Client.new(
-    host: config[:db][:host],
-    port: config[:db][:port],
+    # host: config[:db][:host],
+    # port: config[:db][:port],
+    socket: config[:db][:socket],
     username: config[:db][:username],
     password: config[:db][:password],
     database: config[:db][:database],

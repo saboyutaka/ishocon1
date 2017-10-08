@@ -173,7 +173,9 @@ class Ishocon1::WebApp < Sinatra::Base
     end
 
     def current_user
-      @user ||= find_user(session[:user_id])
+      return @user if @user
+      return nil unless session[:user_id]
+      @user = find_user(session[:user_id])
     end
 
     def update_last_login(user_id)

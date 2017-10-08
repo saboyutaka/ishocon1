@@ -235,7 +235,7 @@ class Ishocon1::WebApp < Sinatra::Base
   get '/' do
     load_upcomming_comments
     page = params[:page].to_i || 0
-    cache [:/, $comments.size, current_user[:id], params[:page]] do
+    cache [:/, $comments.size, (current_user&&current_user[:id]), params[:page]] do
       products = product_list page * 50, 50
       erb :index, locals: { products: products }
     end

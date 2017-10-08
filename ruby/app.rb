@@ -156,6 +156,16 @@ class Ishocon1::WebApp < Sinatra::Base
       $product_comments[product_id] || []
     end
 
+    def cache key
+      $view_cache ||= []
+      hash = key.hash
+      h, v = $view_cache[hash%10000]
+      return v if v && h == hash
+      v = yield
+      $view_cache[hash%10000] = [hash, v]
+      v
+    end
+
     def time_now_db
       Time.now - 9 * 60 * 60
     end
@@ -223,19 +233,22 @@ class Ishocon1::WebApp < Sinatra::Base
   end
 
   get '/' do
-    page = params[:page].to_i || 0
-    products = product_list page * 50, 50
     load_upcomming_comments
-    erb :index, locals: { products: products }
+    page = params[:page].to_i || 0
+    cache [:/, $comments.size, current_user[:id], params[:page]] do
+      products = product_list page * 50, 50
+      erb :index, locals: { products: products }
+    end
   end
 
   get '/users/:user_id' do
     load_upcomming_histories
-    histories = $user_histories[params[:user_id].to_i] || []
-    total_pay = $user_pays[params[:user_id].to_i]
-
-    user = find_user params[:user_id]
-    erb :mypage, locals: { histories: histories, user: user, total_pay: total_pay }
+    cache [:mypage, (current_user&&current_user[:id]), params[:uesr_id], $histories.size] do
+      histories = $user_histories[params[:user_id].to_i] || []
+      total_pay = $user_pays[params[:user_id].to_i]
+      user = find_user params[:user_id]
+      erb :mypage, locals: { histories: histories, user: user, total_pay: total_pay }
+    end
   end
 
   get '/products/:product_id' do
@@ -271,6 +284,7 @@ class Ishocon1::WebApp < Sinatra::Base
     db.query('DELETE FROM histories WHERE id > 500000')
     reset_comments
     reset_histories
+    $view_cache = {}
     'Finish'
   end
 end

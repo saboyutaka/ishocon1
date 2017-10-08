@@ -1,0 +1,4 @@
+development:
+    driver: mymysql
+    open: tcp:127.0.0.1:3306*ishocon1/root/
+

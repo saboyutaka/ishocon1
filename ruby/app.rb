@@ -256,21 +256,26 @@ class Ishocon1::WebApp < Sinatra::Base
     redirect "/users/#{current_user[:id]}"
   end
 
-  get '/initialize' do
-    threads = 40.times.map do
-      Thread.new { `curl http://localhost:8080/true_initialize` }
-    end
-    threads.map(&:join)
-    "Finish"
-  end
-
-  get '/true_initialize' do
+  def reset!
     db.query('DELETE FROM users WHERE id > 5000')
     db.query('DELETE FROM products WHERE id > 10000')
     db.query('DELETE FROM comments WHERE id > 200000')
     db.query('DELETE FROM histories WHERE id > 500000')
     reset_comments
     reset_histories
+  end
+
+  get '/initialize' do
+    threads = 40.times.map do
+      Thread.new { `curl http://localhost:8080/true_initialize` }
+    end
+    reset!
+    threads.map(&:join)
+    "Finish"
+  end
+
+  get '/true_initialize' do
+    reset!
     'Finish'
   end
 end

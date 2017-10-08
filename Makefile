@@ -32,6 +32,11 @@ db-slow-query: ## tail slow query log
 
 alp: ## nginx analyzer
 	@sudo /usr/local/bin/alp -f /var/log/nginx/access.log  --sum  -r --aggregates '/products/buy/\d+, /products/\d+, /comments/\d+, /users/\d+' --start-time-duration 5m --include-statuses='20[0-9],30[0-2]'
+bench: ## Run benchmark
+	../benchmark --workload 3
+
+unicorn: # Run Unicorn
+	@cd ruby;bundle exec unicorn -c unicorn_config.rb
 
 .PHONY: help
 help:

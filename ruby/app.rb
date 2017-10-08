@@ -50,7 +50,7 @@ class Ishocon1::WebApp < Sinatra::Base
     def authenticate(email, password)
       user = db.xquery('SELECT * FROM users WHERE email = ?', email).first
       fail Ishocon1::AuthenticationError unless user[:password] == password
-      session[:user_id] = user[:id]
+      session[:current_user] = user
     end
 
     def authenticated!
@@ -58,7 +58,7 @@ class Ishocon1::WebApp < Sinatra::Base
     end
 
     def current_user
-      db.xquery('SELECT * FROM users WHERE id = ?', session[:user_id]).first
+      session[:current_user]
     end
 
     def update_last_login(user_id)
@@ -84,7 +84,7 @@ class Ishocon1::WebApp < Sinatra::Base
   end
 
   error Ishocon1::AuthenticationError do
-    session[:user_id] = nil
+    session[:current_user] = nil
     halt 401, erb(:login, layout: false, locals: { message: 'ログインに失敗しました' })
   end
 
@@ -104,7 +104,7 @@ class Ishocon1::WebApp < Sinatra::Base
   end
 
   get '/logout' do
-    session[:user_id] = nil
+    session[:current_user] = nil
     session.clear
     redirect '/login'
   end

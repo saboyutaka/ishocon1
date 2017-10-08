@@ -56,6 +56,26 @@ def _find_all_user
   end
 end
 
+
+def _load_all_products
+  $products = []
+  db.xquery('SELECT SQL_NO_CACHE * from products').to_a.each do |product|
+    $products[product[:id]] = product
+  end
+  $products
+end
+_load_all_products
+def find_product id
+  $products[id.to_i]
+end
+
+def product_list(offset, limit)
+  limit.times.map do |i|
+    idx = $products.size - offset - i - 1
+    $products[idx] if idx >= 0
+  end.compact
+end
+
 load_upcomming_comments
 _find_all_user
 
@@ -159,34 +179,25 @@ class Ishocon1::WebApp < Sinatra::Base
 
   get '/' do
     page = params[:page].to_i || 0
-    products = db.xquery("SELECT * FROM products ORDER BY id DESC LIMIT 50 OFFSET #{page * 50}")
+    products = product_list page * 50, 50
     load_upcomming_comments
-
     erb :index, locals: { products: products }
   end
 
   get '/users/:user_id' do
-    products_query = <<SQL
-SELECT p.id, p.name, p.description, p.image_path, p.price, h.created_at
-FROM histories as h
-LEFT OUTER JOIN products as p
-ON h.product_id = p.id
-WHERE h.user_id = ?
-ORDER BY h.id DESC
-SQL
-    products = db.xquery(products_query, params[:user_id])
+    histories = db.xquery('select product_id, user_id from histories where user_id = ? order by id desc', params[:user_id])
 
     total_pay = 0
-    products.each do |product|
-      total_pay += product[:price]
+    histories.each do |history|
+      total_pay += find_product(history[:product_id])[:price]
     end
 
     user = find_user params[:user_id]
-    erb :mypage, locals: { products: products, user: user, total_pay: total_pay }
+    erb :mypage, locals: { histories: histories, user: user, total_pay: total_pay }
   end
 
   get '/products/:product_id' do
-    product = db.xquery('SELECT * FROM products WHERE id = ? LIMIT 1', params[:product_id]).first
+    product = find_product params[:product_id]
     erb :product, locals: { product: product }
   end
 

@@ -103,7 +103,7 @@ class Ishocon1::WebApp < Sinatra::Base
 
   post '/login' do
     authenticate(params['email'], params['password'])
-    update_last_login(current_user[:id])
+    # update_last_login(current_user[:id])
     redirect '/'
   end
 

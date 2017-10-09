@@ -4,6 +4,7 @@ require 'mysql2-cs-bind'
 require 'rack-mini-profiler'
 require 'rack-lineprof'
 require 'erubis'
+require_relative 'tailfevent'
 require 'rack/session/dalli'
 
 def config
@@ -85,7 +86,7 @@ end
 def load_upcomming_comments
   $loaded_comment_id ||= 0
   $product_comments ||= {}
-  $comments = []
+  $comments ||= []
   db.xquery('SELECT * from comments where id > ? order by created_at asc, id asc', $loaded_comment_id).to_a.each do |comment|
     $comments[comment[:id]] = comment
     ($product_comments[comment[:product_id]] ||= []).unshift comment
@@ -126,6 +127,21 @@ load_upcomming_histories
 load_upcomming_comments
 _find_all_user
 
+def reset!
+  reset_comments
+  reset_histories
+end
+
+
+EVENT_FILE = './initialize_event_file'
+File.write(EVENT_FILE, '')
+def after_fork_foooooo
+  $initialize_emitter = TailFEvent.new EVENT_FILE do |msg|
+    p :resetting
+    reset!
+    p :reset_done
+  end
+end
 
 module Ishocon1
 end
@@ -256,26 +272,15 @@ class Ishocon1::WebApp < Sinatra::Base
     redirect "/users/#{current_user[:id]}"
   end
 
-  def reset!
+  get '/initialize' do
     db.query('DELETE FROM users WHERE id > 5000')
     db.query('DELETE FROM products WHERE id > 10000')
     db.query('DELETE FROM comments WHERE id > 200000')
     db.query('DELETE FROM histories WHERE id > 500000')
-    reset_comments
-    reset_histories
-  end
-
-  get '/initialize' do
-    threads = 40.times.map do
-      Thread.new { `curl http://localhost:8080/true_initialize` }
-    end
-    reset!
-    threads.map(&:join)
+    p :initializing
+    $initialize_emitter.emit :initialize
+    p :done
     "Finish"
   end
 
-  get '/true_initialize' do
-    reset!
-    'Finish'
-  end
 end

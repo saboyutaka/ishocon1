@@ -126,6 +126,21 @@ load_upcomming_histories
 load_upcomming_comments
 _find_all_user
 
+def start_async
+  p :STARTING_ASYNC
+  $async_thread ||= Thread.new do
+    a=Time.now
+    loop do
+      t1 = Time.now
+      load_upcomming_histories
+      t2 = Time.now
+      load_upcomming_comments
+      t3 = Time.now
+      p [t2-t1, t3-t2]
+      sleep 0.05
+    end
+  end
+end
 
 module Ishocon1
 end
@@ -222,15 +237,15 @@ class Ishocon1::WebApp < Sinatra::Base
     redirect '/login'
   end
 
+  before { start_async }
+
   get '/' do
     page = params[:page].to_i || 0
     products = product_list page * 50, 50
-    load_upcomming_comments
     erb :index, locals: { products: products }
   end
 
   get '/users/:user_id' do
-    load_upcomming_histories
     histories = $user_histories[params[:user_id].to_i] || []
     total_pay = $user_pays[params[:user_id].to_i]
 
@@ -240,7 +255,6 @@ class Ishocon1::WebApp < Sinatra::Base
 
   get '/products/:product_id' do
     product = find_product params[:product_id]
-    load_upcomming_histories
     erb :product, locals: { product: product }
   end
 
